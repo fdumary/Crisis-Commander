@@ -1,6 +1,7 @@
 import sqlite3
 from datetime import datetime
 
+
 class RoleSystem:
     def __init__(self):
         self.conn = sqlite3.connect('role_system.db')
@@ -90,8 +91,26 @@ class RoleSystem:
         else:
             print("You don't have permission to view clients")
 
+    def view_faculty(self):
+        if self.current_user_role == 'admin':
+            self.cursor.execute('''
+                SELECT username, id
+                FROM users
+                WHERE role = 'faculty'
+            ''')
+            faculty = self.cursor.fetchall()
+            if faculty:
+                print("Faculty List:")
+                for member in faculty:
+                    print(f"Username: {member[0]}, ID: {member[1]}")
+            else:
+                print("No faculty members found")
+        else:
+            print("You don't have permission to view faculty members")
+
     def close(self):
         self.conn.close()
+
 
 def main():
     system = RoleSystem()
@@ -106,9 +125,10 @@ def main():
         print("3. Add Faculty (Admin only)")
         print("4. Add Client (Faculty only)")
         print("5. View Clients")
-        print("6. Exit")
+        print("6. View Faculty (Admin only)")
+        print("7. Exit")
 
-        choice = input("Enter your choice (1-6): ")
+        choice = input("Enter your choice (1-7): ")
 
         if choice == '1':
             username = input("Enter username: ")
@@ -133,11 +153,14 @@ def main():
         elif choice == '5':
             system.view_clients()
         elif choice == '6':
-            print("Exiting the system. Goodbye!")
+            system.view_faculty()
+        elif choice == '7':
+            print("Exiting the system...")
             system.close()
             break
         else:
             print("Invalid choice. Please try again.")
+
 
 if __name__ == "__main__":
     main()
