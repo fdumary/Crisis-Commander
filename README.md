@@ -1,3 +1,5 @@
+![Alt text](resources/Crisis-Commander-banner.png)
+
 # Front End Documentation
 npm install
 
