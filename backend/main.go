@@ -8,86 +8,114 @@ import (
 	"github.com/google/uuid"
 )
 
-var tasks = make(map[string]string) // Initialize a map to store tasks
+// Define the Plan struct
+type Plan struct {
+	Name        string
+	Description string
+	PlanID      string
+	Category    string
+}
+
+var plansDB = make(map[string]Plan)
 
 func main() {
 	http.HandleFunc("/", hello)
-	http.HandleFunc("/tasks", handleTasks) // Use the same route for both GET and POST
-	http.HandleFunc("/task/", handleTask)  // Handle GET, DELETE requests
+	http.HandleFunc("/plans", handlePlans) // GET all or DELETE all
+	http.HandleFunc("/plan/", handlePlan)  // Handle GET, POST, DELETE requests
 
 	http.ListenAndServe(":8080", nil) // Start the server on port 8080
 }
+
+// Handlers
+
+func handlePlans(writer http.ResponseWriter, request *http.Request) {
+	if request.Method == http.MethodGet {
+		getPlans(writer, request)
+	} else if request.Method == http.MethodDelete {
+		deletePlans(writer, request)
+	} else {
+		http.Error(writer, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func handlePlan(writer http.ResponseWriter, request *http.Request) {
+	planID := strings.TrimPrefix(request.URL.Path, "/plan/")
+
+	if request.Method == http.MethodGet {
+		getPlanByID(writer, planID)
+	} else if request.Method == http.MethodDelete {
+		deletePlan(writer, planID)
+	} else if request.Method == http.MethodPost {
+		addPlan(writer, request)
+	} else {
+		http.Error(writer, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// Controllers
 
 func hello(writer http.ResponseWriter, request *http.Request) {
 	fmt.Fprintln(writer, "Hello user, welcome to our todo list app")
 }
 
-func handleTasks(writer http.ResponseWriter, request *http.Request) {
-	if request.Method == http.MethodGet {
-		getTasks(writer, request)
-	} else if request.Method == http.MethodPost {
-		addTask(writer, request)
-	} else {
-		http.Error(writer, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-func handleTask(writer http.ResponseWriter, request *http.Request) {
-	taskID := strings.TrimPrefix(request.URL.Path, "/task/")
-
-	if request.Method == http.MethodGet {
-		getTaskByID(writer, taskID)
-	} else if request.Method == http.MethodDelete {
-		deleteTask(writer, taskID)
-	} else {
-		http.Error(writer, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-func getTasks(writer http.ResponseWriter, request *http.Request) {
+func getPlans(writer http.ResponseWriter, request *http.Request) {
 	// Get the length of the map
-	numTasks := len(tasks)
+	numPlans := len(plansDB)
 
-	if numTasks == 0 {
-		fmt.Fprintln(writer, "No tasks available")
+	if numPlans == 0 {
+		fmt.Fprintln(writer, "No plans available")
 		return
 	}
 
-	fmt.Fprintf(writer, "You have %d tasks:\n", numTasks)
-	for id, task := range tasks {
-		fmt.Fprintf(writer, "%s. %s\n", id, task) // Display task ID and description
+	fmt.Fprintf(writer, "You have %d plans:\n", numPlans)
+	for id, plan := range plansDB {
+		fmt.Fprintf(
+			writer,
+			"Plan ID: %s, Plan Name: %s, Plan Category: %s, Plan Description: \n%s\n",
+			id, plan.Name, plan.Category, plan.Description)
 	}
 }
 
-func getTaskByID(writer http.ResponseWriter, taskID string) {
-	// Look up the task in the map
-	task, exists := tasks[taskID]
-	if !exists {
-		http.Error(writer, "Task not found", http.StatusNotFound)
-		return
-	}
-
-	// Return the task details
-	fmt.Fprintf(writer, "Task ID: %s, Task: %s\n", taskID, task)
-}
-
-// New function to delete a task by ID
-func deleteTask(writer http.ResponseWriter, taskID string) {
-	// Check if the task exists
-	_, exists := tasks[taskID]
-	if !exists {
-		http.Error(writer, "Task not found", http.StatusNotFound)
-		return
-	}
-
-	// Delete the task
-	delete(tasks, taskID)
+func deletePlans(writer http.ResponseWriter, request *http.Request) {
+	// Clear the plansDB map
+	plansDB = make(map[string]Plan)
 
 	// Confirm deletion
-	fmt.Fprintf(writer, "Task with ID: %s has been deleted.\n", taskID)
+	fmt.Fprintln(writer, "All plans have been deleted.")
 }
 
-func addTask(writer http.ResponseWriter, request *http.Request) {
+func getPlanByID(writer http.ResponseWriter, planID string) {
+	// Look up the plan in the map
+	plan, exists := plansDB[planID]
+	if !exists {
+		http.Error(writer, "Plan not found", http.StatusNotFound)
+		return
+	}
+
+	// Return the plan details
+	fmt.Fprintf(
+		writer,
+		"Plan ID: %s, Plan Name: %s, Plan Category: %s, Plan Description: \n%s",
+		planID, plan.Name, plan.Category, plan.Description)
+}
+
+// New function to delete a plan by ID
+func deletePlan(writer http.ResponseWriter, planID string) {
+	// Check if the plan exists
+	_, exists := plansDB[planID]
+	if !exists {
+		http.Error(writer, "Plan not found", http.StatusNotFound)
+		return
+	}
+
+	// Delete the plan
+	delete(plansDB, planID)
+
+	// Confirm deletion
+	fmt.Fprintf(writer, "Plan with ID: %s has been deleted.\n", planID)
+}
+
+func addPlan(writer http.ResponseWriter, request *http.Request) {
 	// Parse form data
 	err := request.ParseForm()
 	if err != nil {
@@ -95,20 +123,35 @@ func addTask(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	// Get the task from form data
-	newTask := strings.TrimSpace(request.FormValue("task"))
+	// Get fields from form data
+	name := strings.TrimSpace(request.FormValue("name"))
+	description := strings.TrimSpace(request.FormValue("description"))
+	category := strings.TrimSpace(request.FormValue("category"))
 
-	if newTask == "" {
-		http.Error(writer, "Task cannot be empty", http.StatusBadRequest)
+	// Validate fields
+	if name == "" || description == "" || category == "" {
+		http.Error(writer, "All fields are required", http.StatusBadRequest)
 		return
 	}
 
 	// Generate a unique ID
-	taskID := uuid.New().String()
+	planID := uuid.New().String()
 
-	// Add the task to the map with the generated ID
-	tasks[taskID] = newTask
+	// Create a new Plan object
+	newPlan := Plan{
+		Name:        name,
+		Description: description,
+		PlanID:      planID,
+		Category:    category,
+	}
 
-	// Confirm task addition
-	fmt.Fprintf(writer, "Task Created: %s (ID: %s)\n", newTask, taskID)
+	// Add the plan to the map with the generated ID
+	plansDB[planID] = newPlan
+
+	// Confirm plan addition
+	// Return the plan details
+	fmt.Fprintf(
+		writer,
+		"Plan ID: %s, Plan Name: %s, Plan Category: %s, Plan Description: \n%s",
+		planID, newPlan.Name, newPlan.Category, newPlan.Description)
 }
