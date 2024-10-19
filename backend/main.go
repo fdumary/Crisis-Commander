@@ -25,7 +25,7 @@ type Feedback struct {
 }
 
 var plansTable = make(map[string]Plan)
-var feedbackTable = make(map[string]Feedback)
+var feedbacksTable = make(map[string]Feedback)
 
 func main() {
 	// plans routes
@@ -33,7 +33,7 @@ func main() {
 	http.HandleFunc("/plans", handlePlans) // GET all or DELETE all
 	http.HandleFunc("/plan/", handlePlan)  // Handle GET, POST, DELETE requests
 	// feedback routes
-	http.HandleFunc("/feedbacks/", handleFeedback) // Handle GET, POST, DELETE requests
+	http.HandleFunc("/feedbacks/", handleFeedback) // Handle GET and POST requests
 
 	http.ListenAndServe(":8080", nil) // Start the server on port 8080
 }
@@ -69,6 +69,8 @@ func handleFeedback(writer http.ResponseWriter, request *http.Request) {
 
 	if request.Method == http.MethodPost {
 		addFeedback(writer, request, planID)
+	} else if request.Method == http.MethodGet {
+		getFeedbacksByPlanID(writer, planID)
 	} else {
 		http.Error(writer, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -221,7 +223,7 @@ func addFeedback(writer http.ResponseWriter, request *http.Request, planID strin
 	}
 
 	// Add the feedback to the map with the generated ID
-	feedbackTable[feedbackID] = newFeedback
+	feedbacksTable[feedbackID] = newFeedback
 
 	// Confirm feedback addition
 	// Return the feedback details
@@ -229,4 +231,25 @@ func addFeedback(writer http.ResponseWriter, request *http.Request, planID strin
 		writer,
 		"PlanID: %s, Feedback ID: %s, Feedback Level: %s, Feedback Description: \n%s",
 		planID, feedbackID, newFeedback.Level, newFeedback.Description)
+}
+
+func getFeedbacksByPlanID(writer http.ResponseWriter, planID string) {
+	// Look up the plan in the map
+	_, exists := plansTable[planID]
+	if !exists {
+		http.Error(writer, "Plan not found", http.StatusNotFound)
+		return
+	}
+
+	fmt.Fprintf(writer, "Plan ID: %s,", planID)
+
+	// Filter feedbacks associated with the given planID
+	for _, feedback := range feedbacksTable {
+		if feedback.PlanID == planID {
+			fmt.Fprintf(
+				writer,
+				"Feedback ID: %s, Feedback Level: %s, Feedback Description: \n%s \n",
+				feedback.FeedbackID, feedback.Level, feedback.Description)
+		}
+	}
 }
