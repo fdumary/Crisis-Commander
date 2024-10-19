@@ -1,166 +1,48 @@
-import sqlite3
-from datetime import datetime
+from dotenv import load_dotenv
+load_dotenv()
+import os
+from flask import Flask
+from datetime import datetime, timedelta
+from supabase import create_client
+
+# Database config
+url = os.environ.get("SUPABASE_URL")
+key = os.environ.get("SUPABASE_KEY")
+supabase = create_client(url, key)
+
+# can use .eq after select
+# Placeholder code in table and select
+#data = supabase.table("todos").select("id, name").execute()
+#print(data)
+
+#insert data
+#created_at = datetime.utcnow() - timedelta(hours=2)
+#data = supabase.table("todos").insert({"name":"Todo 2", "created_at": str(created_at)}).execute()
+
+#update
+#data = supabase.table("todos").update({"name": "updated name"}).eq("id", 1).execute()
+#data = supabase.table("todos").select("*").execute()
+#print(data)
+
+#delete
+#data = supabase.table("todos").delete().eq("id", 1).execute()
 
 
-class RoleSystem:
-    def __init__(self):
-        self.conn = sqlite3.connect('role_system.db')
-        self.cursor = self.conn.cursor()
-        self.create_tables()
-        self.current_user_id = None
-        self.current_user_role = None
+app = Flask(__name__)
 
-    def create_tables(self):
-        self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY,
-                username TEXT UNIQUE,
-                password TEXT,
-                role TEXT
-            )
-        ''')
-        self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS clients (
-                id INTEGER PRIMARY KEY,
-                name TEXT,
-                email TEXT,
-                added_by INTEGER,
-                added_on DATETIME,
-                FOREIGN KEY (added_by) REFERENCES users(id)
-            )
-        ''')
-        self.conn.commit()
+@app.route('/')
+def hello():
+    return 'Hello World!'
+# TODO: Login
+# TODO: Log_Out
+# TODO: Add_Faculty
+# TODO: Add_Patient
+# TODO: View_Patients
+# TODO: View_Faculty
+# TODO: Delete_User
+# TODO: Forms?
+# TODO: Feedback?
+# TODO: IDK
 
-    def add_user(self, username, password, role):
-        try:
-            self.cursor.execute('INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
-                                (username, password, role))
-            self.conn.commit()
-            print(f"User {username} added successfully as {role}")
-        except sqlite3.IntegrityError:
-            print(f"User {username} already exists")
-
-    def add_faculty(self, username, password):
-        if self.current_user_role == 'admin':
-            self.add_user(username, password, 'faculty')
-        else:
-            print("Only administrators can add faculty members")
-
-    def add_client(self, name, email):
-        if self.current_user_role == 'faculty':
-            self.cursor.execute('''
-                INSERT INTO clients (name, email, added_by, added_on)
-                VALUES (?, ?, ?, ?)
-            ''', (name, email, self.current_user_id, datetime.now()))
-            self.conn.commit()
-            print(f"Client {name} added successfully")
-        else:
-            print("Only faculty members can add clients")
-
-    def login(self, username, password):
-        self.cursor.execute('SELECT id, role FROM users WHERE username = ? AND password = ?',
-                            (username, password))
-        user = self.cursor.fetchone()
-        if user:
-            self.current_user_id, self.current_user_role = user
-            print(f"Logged in as {username} ({self.current_user_role})")
-            return True
-        else:
-            print("Invalid username or password")
-            return False
-
-    def logout(self):
-        self.current_user_id = None
-        self.current_user_role = None
-        print("Logged out successfully")
-
-    def view_clients(self):
-        if self.current_user_role in ['admin', 'faculty']:
-            self.cursor.execute('''
-                SELECT c.name, c.email, u.username, c.added_on
-                FROM clients c
-                JOIN users u ON c.added_by = u.id
-            ''')
-            clients = self.cursor.fetchall()
-            if clients:
-                print("Client List:")
-                for client in clients:
-                    print(f"Name: {client[0]}, Email: {client[1]}, Added by: {client[2]}, Added on: {client[3]}")
-            else:
-                print("No clients found")
-        else:
-            print("You don't have permission to view clients")
-
-    def view_faculty(self):
-        if self.current_user_role == 'admin':
-            self.cursor.execute('''
-                SELECT username, id
-                FROM users
-                WHERE role = 'faculty'
-            ''')
-            faculty = self.cursor.fetchall()
-            if faculty:
-                print("Faculty List:")
-                for member in faculty:
-                    print(f"Username: {member[0]}, ID: {member[1]}")
-            else:
-                print("No faculty members found")
-        else:
-            print("You don't have permission to view faculty members")
-
-    def close(self):
-        self.conn.close()
-
-
-def main():
-    system = RoleSystem()
-
-    # Add initial admin user if not exists
-    system.add_user('admin', 'adminpass', 'admin')
-
-    while True:
-        print("\n--- Role System Menu ---")
-        print("1. Login")
-        print("2. Logout")
-        print("3. Add Faculty (Admin only)")
-        print("4. Add Client (Faculty only)")
-        print("5. View Clients")
-        print("6. View Faculty (Admin only)")
-        print("7. Exit")
-
-        choice = input("Enter your choice (1-7): ")
-
-        if choice == '1':
-            username = input("Enter username: ")
-            password = input("Enter password: ")
-            system.login(username, password)
-        elif choice == '2':
-            system.logout()
-        elif choice == '3':
-            if system.current_user_role == 'admin':
-                username = input("Enter new faculty username: ")
-                password = input("Enter new faculty password: ")
-                system.add_faculty(username, password)
-            else:
-                print("You must be logged in as an admin to add faculty.")
-        elif choice == '4':
-            if system.current_user_role == 'faculty':
-                name = input("Enter client name: ")
-                email = input("Enter client email: ")
-                system.add_client(name, email)
-            else:
-                print("You must be logged in as faculty to add clients.")
-        elif choice == '5':
-            system.view_clients()
-        elif choice == '6':
-            system.view_faculty()
-        elif choice == '7':
-            print("Exiting the system...")
-            system.close()
-            break
-        else:
-            print("Invalid choice. Please try again.")
-
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    app.run(debug=True)
