@@ -16,12 +16,24 @@ type Plan struct {
 	Category    string
 }
 
-var plansDB = make(map[string]Plan)
+// Define the Plan struct
+type Feedback struct {
+	Description string
+	PlanID      string
+	Level       string
+	FeedbackID  string
+}
+
+var plansTable = make(map[string]Plan)
+var feedbackTable = make(map[string]Feedback)
 
 func main() {
+	// plans routes
 	http.HandleFunc("/", hello)
 	http.HandleFunc("/plans", handlePlans) // GET all or DELETE all
 	http.HandleFunc("/plan/", handlePlan)  // Handle GET, POST, DELETE requests
+	// feedback routes
+	http.HandleFunc("/feedbacks/", handleFeedback) // Handle GET, POST, DELETE requests
 
 	http.ListenAndServe(":8080", nil) // Start the server on port 8080
 }
@@ -52,6 +64,16 @@ func handlePlan(writer http.ResponseWriter, request *http.Request) {
 	}
 }
 
+func handleFeedback(writer http.ResponseWriter, request *http.Request) {
+	planID := strings.TrimPrefix(request.URL.Path, "/feedbacks/")
+
+	if request.Method == http.MethodPost {
+		addFeedback(writer, request, planID)
+	} else {
+		http.Error(writer, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
 // Controllers
 
 func hello(writer http.ResponseWriter, request *http.Request) {
@@ -60,7 +82,7 @@ func hello(writer http.ResponseWriter, request *http.Request) {
 
 func getPlans(writer http.ResponseWriter, request *http.Request) {
 	// Get the length of the map
-	numPlans := len(plansDB)
+	numPlans := len(plansTable)
 
 	if numPlans == 0 {
 		fmt.Fprintln(writer, "No plans available")
@@ -68,7 +90,7 @@ func getPlans(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	fmt.Fprintf(writer, "You have %d plans:\n", numPlans)
-	for id, plan := range plansDB {
+	for id, plan := range plansTable {
 		fmt.Fprintf(
 			writer,
 			"Plan ID: %s, Plan Name: %s, Plan Category: %s, Plan Description: \n%s\n",
@@ -77,8 +99,8 @@ func getPlans(writer http.ResponseWriter, request *http.Request) {
 }
 
 func deletePlans(writer http.ResponseWriter, request *http.Request) {
-	// Clear the plansDB map
-	plansDB = make(map[string]Plan)
+	// Clear the plansTable map
+	plansTable = make(map[string]Plan)
 
 	// Confirm deletion
 	fmt.Fprintln(writer, "All plans have been deleted.")
@@ -86,7 +108,7 @@ func deletePlans(writer http.ResponseWriter, request *http.Request) {
 
 func getPlanByID(writer http.ResponseWriter, planID string) {
 	// Look up the plan in the map
-	plan, exists := plansDB[planID]
+	plan, exists := plansTable[planID]
 	if !exists {
 		http.Error(writer, "Plan not found", http.StatusNotFound)
 		return
@@ -102,14 +124,14 @@ func getPlanByID(writer http.ResponseWriter, planID string) {
 // New function to delete a plan by ID
 func deletePlan(writer http.ResponseWriter, planID string) {
 	// Check if the plan exists
-	_, exists := plansDB[planID]
+	_, exists := plansTable[planID]
 	if !exists {
 		http.Error(writer, "Plan not found", http.StatusNotFound)
 		return
 	}
 
 	// Delete the plan
-	delete(plansDB, planID)
+	delete(plansTable, planID)
 
 	// Confirm deletion
 	fmt.Fprintf(writer, "Plan with ID: %s has been deleted.\n", planID)
@@ -146,7 +168,7 @@ func addPlan(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	// Add the plan to the map with the generated ID
-	plansDB[planID] = newPlan
+	plansTable[planID] = newPlan
 
 	// Confirm plan addition
 	// Return the plan details
@@ -154,4 +176,57 @@ func addPlan(writer http.ResponseWriter, request *http.Request) {
 		writer,
 		"Plan ID: %s, Plan Name: %s, Plan Category: %s, Plan Description: \n%s",
 		planID, newPlan.Name, newPlan.Category, newPlan.Description)
+}
+
+func addFeedback(writer http.ResponseWriter, request *http.Request, planID string) {
+	// Parse form data
+	err := request.ParseForm()
+	if err != nil {
+		http.Error(writer, "Error parsing form data", http.StatusBadRequest)
+		return
+	}
+
+	// Extract planID from the URL (e.g., /plan/123)
+	if planID == "" {
+		http.Error(writer, "planID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Look up the plan in the map
+	_, exists := plansTable[planID]
+	if !exists {
+		http.Error(writer, "Plan not found", http.StatusNotFound)
+		return
+	}
+
+	// Get fields from form data
+	description := strings.TrimSpace(request.FormValue("description"))
+	level := strings.TrimSpace(request.FormValue("level"))
+
+	// Validate fields
+	if level == "" || description == "" {
+		http.Error(writer, "All fields are required", http.StatusBadRequest)
+		return
+	}
+
+	// Generate a unique ID
+	feedbackID := uuid.New().String()
+
+	// Create a new Feedback object
+	newFeedback := Feedback{
+		PlanID:      planID,
+		Description: description,
+		FeedbackID:  feedbackID,
+		Level:       level,
+	}
+
+	// Add the feedback to the map with the generated ID
+	feedbackTable[feedbackID] = newFeedback
+
+	// Confirm feedback addition
+	// Return the feedback details
+	fmt.Fprintf(
+		writer,
+		"PlanID: %s, Feedback ID: %s, Feedback Level: %s, Feedback Description: \n%s",
+		planID, feedbackID, newFeedback.Level, newFeedback.Description)
 }
