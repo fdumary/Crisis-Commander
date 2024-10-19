@@ -1,9 +1,9 @@
 import './index.css'
 
-const App = () => {
+export default function App() {
   return (
-    <div className='bg-black'>App</div>
-  )
+    <>
+      <div>Hello</div>
+    </>
+  );
 }
-
-export default App
